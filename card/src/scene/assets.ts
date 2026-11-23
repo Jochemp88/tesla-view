@@ -34,7 +34,15 @@ export function fetchJson<T = any>(rel: string, base: string = ASSETS_ROOT, opts
 const gltfLoader = new GLTFLoader();
 const objLoader = new OBJLoader();
 export const loadGltf = (rel: string, base: string = ASSETS_ROOT) => new Promise<GLTF>((res, rej) => gltfLoader.load(assetUrl(rel, base), res, undefined, rej));
-export const loadObj = (rel: string, base: string = ASSETS_ROOT) => new Promise<THREE.Group>((res, rej) => objLoader.load(assetUrl(rel, base), res, undefined, rej));
+/** OBJ stores V bottom-up; Godot's importer flips it (v = 1 - v), and the textures are loaded in glTF orientation
+ *  (`flipY = false`), so flip V here to sample the same texels as the app. */
+export const loadObj = (rel: string, base: string = ASSETS_ROOT) => new Promise<THREE.Group>((res, rej) => objLoader.load(assetUrl(rel, base), group => {
+  group.traverse(o => {
+    const uv = (o as THREE.Mesh).isMesh ? (o as THREE.Mesh).geometry.getAttribute('uv') : undefined; if (!uv) return;
+    for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+  });
+  res(group);
+}, undefined, rej));
 
 /** Godot SpatialMaterial uv1_scale / uv1_offset: UV = UV * scale + offset (same as three.js repeat/offset). */
 export interface UvTransform { scale?: number[] | null; offset?: number[] | null }
